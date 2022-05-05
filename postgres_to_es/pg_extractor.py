@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 
@@ -35,21 +36,23 @@ LIMIT %s;
 """
 
 
-def extract_from_pg(pg_cursor, last_modified, batch=3, limit=10) -> list:
+def extract_from_pg(pg_cursor, last_modified, batch=3, limit=10) -> list[tuple]:
+    data = []
+
     try:
         pg_cursor.execute(extract_query, (last_modified, limit))
-        data = []
 
         while True:
             records = pg_cursor.fetchmany(batch)
-            print(f'Found {len(records)} records.')
 
             if not records:
                 break
-            for row in records:
-                data.append(row)
 
-        return data
+            for row in records:
+                # TODO: probably use generator? https://stackoverflow.com/a/39039564
+                data.append(row)
 
     except Exception as err:
         log.error(f'{datetime.now()}, {err}')
+
+    return data
