@@ -20,7 +20,7 @@ dsn = {
     'options': "-c search_path=content",
 }
 
-elastic = [{
+es_node = {
     'host': os.getenv('ELASTIC_HOST'),
     'port': os.getenv('ELASTIC_PORT'),
-}]
+}

@@ -1,6 +1,6 @@
-import json
 import logging
 from datetime import datetime
+from backoff import backoff
 
 log = logging.getLogger('Postgres')
 
@@ -36,11 +36,12 @@ LIMIT %s;
 """
 
 
-def extract_from_pg(pg_cursor, last_modified, batch=3, limit=10) -> list[tuple]:
+@backoff()
+def extract_from_pg(pg_cursor, last_modified, batch=3, query_limit=10) -> list:
     data = []
 
     try:
-        pg_cursor.execute(extract_query, (last_modified, limit))
+        pg_cursor.execute(extract_query, (last_modified, query_limit))
 
         while True:
             records = pg_cursor.fetchmany(batch)
@@ -53,6 +54,7 @@ def extract_from_pg(pg_cursor, last_modified, batch=3, limit=10) -> list[tuple]:
                 data.append(row)
 
     except Exception as err:
-        log.error(f'{datetime.now()}, {err}')
+        log.error(f'{datetime.now()} Failed while extracting data from Postgres.\n{err}\n\n')
+        raise
 
     return data
