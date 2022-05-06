@@ -14,9 +14,7 @@ from backoff import backoff
 
 log = logging.getLogger('MAIN')
 
-state = State(JsonFileStorage(STATE_FILE))
 STATE_KEY = 'last_modified'
-
 INDEX = 'movies'
 
 
@@ -61,7 +59,7 @@ def transform_pg_to_es(pg_data) -> list[dict]:
     def get_director_name(persons):
         directors = list(filter(is_director, persons))
         director = list(filter(is_director, persons))[0] if len(directors) else {}
-        return director.get('person_name')
+        return director.get('person_name') or ""
 
     try:
         for row in pg_data:
@@ -71,7 +69,7 @@ def transform_pg_to_es(pg_data) -> list[dict]:
             prepared_row = {
                 "id": row.get("id"),
                 "imdb_rating": row.get("rating"),
-                "genre": ", ".join(row.get('genres')),
+                "genre": row.get('genres'),
                 "title": row.get("title"),
                 "description": row.get("description"),
                 "director": get_director_name(persons),
@@ -96,6 +94,7 @@ def save_to_elastic(es_client, es_data) -> None:
     try:
         es_client.bulk(index=INDEX, body=es_data, refresh=True)
     except Exception as err:
+        print(es_data)
         log.error(f'{datetime.now()} Failed while saving to ElasticSearch.\n{err}\n\n')
         raise
 
@@ -105,7 +104,11 @@ def run_pipeline(pg_cursor, es_client, latest_processed_date) -> None:
     Runes the recursive process for retrieving/transforming/saving data from Postgres DB to Elastic node.
     """
     try:
-        pg_data = extract_from_pg(pg_cursor, latest_processed_date, batch=1, query_limit=1)
+        pg_data = extract_from_pg(pg_cursor, latest_processed_date, batch=10, query_limit=100)
+        if not pg_data:
+            log.info(f'{datetime.now()} Export has been successfully finished.\n\n')
+            return
+
         es_data = transform_pg_to_es(pg_data)
         save_to_elastic(es_client, es_data)
     except Exception as err:
@@ -116,17 +119,19 @@ def run_pipeline(pg_cursor, es_client, latest_processed_date) -> None:
     next_last_modified = dict(pg_data[-1]).get('modified')
     state.set_state(STATE_KEY, str(next_last_modified))
 
-    time.sleep(1)
+    time.sleep(.3)
 
     run_pipeline(pg_cursor, es_client, next_last_modified)
 
 
 if __name__ == '__main__':
-    last_modified = state.get_state(STATE_KEY)
-
-    if not last_modified:
+    state = State(JsonFileStorage(STATE_FILE))
+    current_state = state.get_state(STATE_KEY)
+    if not current_state:
         state.set_state(STATE_KEY, str(datetime.min))
         last_modified = state.get_state(STATE_KEY)
+    else:
+        last_modified = current_state
 
     es_client = Elasticsearch([es_node])
     log.info(f'\n{datetime.now()} Successfully connected to '
@@ -138,9 +143,13 @@ if __name__ == '__main__':
     else:
         log.warning(f'{datetime.now()} Index {INDEX} is already created.')
 
-    # TODO: Cursor will be closed if PG RDBMS will fail (try to switch it off in Docker).
+    # TODO: Cursor will be closed if Postgres will fail (try to switch it off in Docker).
     with psycopg2.connect(**dsn, cursor_factory=RealDictCursor) as conn, \
             conn.cursor() as cur:
         log.info(f'{datetime.now()} Successfully connected to Postgres.')
 
-        run_pipeline(cur, es_client, last_modified)
+        try:
+            run_pipeline(cur, es_client, last_modified)
+            state.set_state(STATE_KEY, str(datetime.min))  # Clear the state after finishing the export
+        except Exception as err:
+            log.error(f'Failed while running the pipeline.\n{err}\n\n')
