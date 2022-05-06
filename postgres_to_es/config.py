@@ -6,10 +6,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 logging.basicConfig(filename='logs/es.log', level='INFO')
-log = logging.getLogger()
-log.setLevel(level='INFO')
 
 STATE_FILE = os.getenv('STATE_FILE')
+STATE_KEY = 'last_modified'
+ES_INDEX = 'movies'
 
 dsn = {
     'dbname': os.getenv('PG_DB'),
