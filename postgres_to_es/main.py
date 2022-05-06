@@ -37,7 +37,7 @@ def run_pipeline(pg_cursor, es_client, latest_processed_date) -> None:
     next_last_modified = dict(pg_data[-1]).get('modified')
     state.set_state(STATE_KEY, str(next_last_modified))
 
-    time.sleep(3)
+    time.sleep(.3)  # for debugging purposes
 
     run_pipeline(pg_cursor, es_client, next_last_modified)
 
