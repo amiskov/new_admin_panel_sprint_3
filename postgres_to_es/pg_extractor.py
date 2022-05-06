@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
 from config import dsn
 
 log = logging.getLogger('Postgres')
@@ -57,11 +59,12 @@ def extract_from_pg(pg_cursor, last_modified, batch=3, query_limit=10) -> list:
                 break
 
             for row in records:
-                # TODO: probably use generator? https://stackoverflow.com/a/39039564
                 data.append(row)
 
     except Exception as err:
-        log.error(f'{datetime.now()} Failed while extracting data from Postgres.\n{err}\n\n')
+        log.error(
+            f'{datetime.now()} Failed while extracting data '
+            f'from Postgres.\n{err}\n\n')
         raise
 
     return data

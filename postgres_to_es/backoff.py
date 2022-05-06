@@ -5,8 +5,8 @@ from time import sleep
 
 def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
     """
-    Функция для повторного выполнения функции через некоторое время, если 
-    возникла ошибка. Использует наивный экспоненциальный рост времени повтора 
+    Функция для повторного выполнения функции через некоторое время, если
+    возникла ошибка. Использует наивный экспоненциальный рост времени повтора
     (factor) до граничного времени ожидания (border_sleep_time).
 
     Формула:
@@ -17,6 +17,7 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
     :param border_sleep_time: граничное время ожидания
     :return: результат выполнения функции
     """
+
     def func_wrapper(func):
         @wraps(func)
         def inner(*args, **kwargs):
@@ -30,15 +31,18 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
                     logging.warning(f"{error}. Slept for {sleep_time}.")
 
                     if sleep_time < border_sleep_time:
-                        sleep_time = min(start_sleep_time * (factor ** n), border_sleep_time)
+                        sleep_time = min(start_sleep_time * (factor ** n),
+                                         border_sleep_time)
                     else:
                         sleep_time = border_sleep_time
-                        
+
                     sleep(sleep_time)
                     n += 1
                     continue
                 finally:
                     if n >= 500:
                         raise Exception(f"Too many attempts ({n})!")
+
         return inner
+
     return func_wrapper
