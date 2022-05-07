@@ -28,7 +28,7 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
                 try:
                     return func(*args, **kwargs)
                 except Exception as error:
-                    logging.warning(f"{error}. Slept for {sleep_time}.")
+                    logging.warning(f'{error}. Slept for {sleep_time}.')
 
                     if sleep_time < border_sleep_time:
                         sleep_time = min(start_sleep_time * (factor ** n),
@@ -41,7 +41,7 @@ def backoff(start_sleep_time=0.1, factor=2, border_sleep_time=10):
                     continue
                 finally:
                     if n >= 500:
-                        raise Exception(f"Too many attempts ({n})!")
+                        raise Exception(f'Too many attempts ({n})!')
 
         return inner
 

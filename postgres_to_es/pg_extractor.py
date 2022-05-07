@@ -8,7 +8,7 @@ from config import dsn
 
 log = logging.getLogger('Postgres')
 
-extract_query = """
+extract_query = '''
 SELECT
    fw.id,
    fw.title,
@@ -37,7 +37,7 @@ WHERE fw.modified > %s
 GROUP BY fw.id
 ORDER BY fw.modified
 LIMIT %s;
-"""
+'''
 
 
 def connect_pg():

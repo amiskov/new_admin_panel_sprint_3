@@ -17,7 +17,7 @@ dsn = {
     'password': os.getenv('PG_PASSWORD'),
     'host': os.environ.get('PG_HOST'),
     'port': os.environ.get('PG_PORT'),
-    'options': "-c search_path=content",
+    'options': '-c search_path=content',
 }
 
 es_node = {

@@ -27,23 +27,23 @@ def transform_pg_to_es(pg_data) -> list[dict]:
     prepared_data = []
 
     def is_writer(person):
-        return person.get("person_role") == 'writer'
+        return person.get('person_role') == 'writer'
 
     def is_director(person):
-        return person.get("person_role") == 'director'
+        return person.get('person_role') == 'director'
 
     def get_names(persons):
         def get_name(person):
-            return person.get("name")
+            return person.get('name')
 
         return list(map(get_name, persons))
 
     def is_actor(person):
-        return person.get("person_role") == 'actor'
+        return person.get('person_role') == 'actor'
 
     def get_persons(persons, pred):
         def strip_fields(p):
-            return {'id': p.get("person_id"),
+            return {'id': p.get('person_id'),
                     'name': p.get('person_name')}
 
         return list(map(strip_fields, filter(pred, persons)))
@@ -52,29 +52,29 @@ def transform_pg_to_es(pg_data) -> list[dict]:
         directors = list(filter(is_director, persons))
         director = list(filter(is_director, persons))[0] \
             if len(directors) else {}
-        return director.get('person_name') or ""
+        return director.get('person_name') or ''
 
     try:
         for row in pg_data:
-            persons = row.get("persons")
+            persons = row.get('persons')
             actors = get_persons(persons, is_actor)
             writers = get_persons(persons, is_writer)
             prepared_row = {
-                "id": row.get("id"),
-                "imdb_rating": row.get("rating"),
-                "genre": row.get('genres'),
-                "title": row.get("title"),
-                "description": row.get("description"),
-                "director": get_director_name(persons),
-                "actors_names": get_names(actors),
-                "writers_names": get_names(writers),
-                "actors": actors,
-                "writers": writers,
+                'id': row.get('id'),
+                'imdb_rating': row.get('rating'),
+                'genre': row.get('genres'),
+                'title': row.get('title'),
+                'description': row.get('description'),
+                'director': get_director_name(persons),
+                'actors_names': get_names(actors),
+                'writers_names': get_names(writers),
+                'actors': actors,
+                'writers': writers,
             }
             row_index = {
-                "index": {
-                    "_index": ES_INDEX,
-                    "_id": row.get('id')
+                'index': {
+                    '_index': ES_INDEX,
+                    '_id': row.get('id')
                 }
             }
 

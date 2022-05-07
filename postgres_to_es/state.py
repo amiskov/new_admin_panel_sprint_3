@@ -24,8 +24,8 @@ class JsonFileStorage(BaseStorage):
 
     storage = JsonFileStorage('resources/storage.json')
     s = State(storage)
-    s.set_state("last_modified", "2020-01-01 00:00:00")
-    s.get_state("last_modified")
+    s.set_state('last_modified', '2020-01-01 00:00:00')
+    s.get_state('last_modified')
     """
 
     def __init__(self, file_path: Optional[str] = None):
