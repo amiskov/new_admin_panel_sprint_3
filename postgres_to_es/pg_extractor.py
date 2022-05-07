@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime
+from typing import Optional
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2  # type: ignore
+from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
 
 from config import dsn
 
@@ -40,13 +41,16 @@ LIMIT %s;
 '''
 
 
-def connect_pg():
+def connect_pg() -> RealDictCursor:
     conn = psycopg2.connect(**dsn, cursor_factory=RealDictCursor)
     log.info(f'{datetime.now()} Successfully connected to Postgres.')
     return conn.cursor()
 
 
-def extract_from_pg(pg_cursor, last_modified, batch=3, query_limit=10) -> list:
+def extract_from_pg(pg_cursor: RealDictCursor,
+                    last_modified: Optional[str],
+                    batch: int = 3,
+                    query_limit: int = 10) -> list[RealDictRow]:
     data = []
 
     try:

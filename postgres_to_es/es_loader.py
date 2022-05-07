@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Callable, Optional
 
 from elasticsearch import Elasticsearch
-from psycopg2.extras import RealDictRow
+from psycopg2.extras import RealDictRow  # type: ignore
 
 from config import ES_INDEX, es_node
 
