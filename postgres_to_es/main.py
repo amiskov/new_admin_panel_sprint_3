@@ -1,17 +1,23 @@
 import logging
 import time
 from datetime import datetime
+from typing import Optional
+
+from elasticsearch import Elasticsearch
 
 from backoff import backoff
 from config import STATE_FILE, STATE_KEY
 from es_loader import connect_elastic, save_to_elastic, transform_pg_to_es
 from pg_extractor import connect_pg, extract_from_pg
+from psycopg2.extras import RealDictCursor  # type: ignore
 from state import JsonFileStorage, State
 
 log = logging.getLogger('Main')
 
 
-def run_pipeline(pg_cursor, es_client, latest_processed_date) -> None:
+def run_pipeline(pg_cursor: RealDictCursor,
+                 es_client: Elasticsearch,
+                 latest_processed_date: Optional[str]) -> None:
     """
     Runs the recursive process for retrieving/transforming/saving data
     from Postgres DB to Elastic node.

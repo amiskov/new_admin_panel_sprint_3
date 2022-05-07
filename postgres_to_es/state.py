@@ -29,7 +29,7 @@ class JsonFileStorage(BaseStorage):
     """
 
     def __init__(self, file_path: Optional[str] = None):
-        self.file_path = file_path
+        self.file_path = file_path or './state.json'
         Path(self.file_path).touch()
 
     def save_state(self, state):
