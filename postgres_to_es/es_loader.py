@@ -1,8 +1,10 @@
 import json
 import logging
 from datetime import datetime
+from typing import Callable, Optional
 
 from elasticsearch import Elasticsearch
+from psycopg2.extras import RealDictRow
 
 from config import ES_INDEX, es_node
 
@@ -23,32 +25,32 @@ def get_elastic_schema(file_path: str) -> dict:
         return json.loads(content)
 
 
-def transform_pg_to_es(pg_data) -> list[dict]:
-    prepared_data = []
+def transform_pg_to_es(pg_data: list[RealDictRow]) -> list[dict]:
+    prepared_data: list[dict] = []
 
-    def is_writer(person):
+    def is_writer(person: dict) -> bool:
         return person.get('person_role') == 'writer'
 
-    def is_director(person):
+    def is_director(person: dict) -> bool:
         return person.get('person_role') == 'director'
 
-    def get_names(persons):
-        def get_name(person):
+    def get_names(persons: list[dict]) -> list[Optional[str]]:
+        def get_name(person: dict) -> Optional[str]:
             return person.get('name')
 
         return list(map(get_name, persons))
 
-    def is_actor(person):
+    def is_actor(person: dict) -> bool:
         return person.get('person_role') == 'actor'
 
-    def get_persons(persons, pred):
-        def strip_fields(p):
+    def get_persons(persons: list[dict], pred: Callable) -> list[dict]:
+        def strip_fields(p: dict) -> dict:
             return {'id': p.get('person_id'),
                     'name': p.get('person_name')}
 
         return list(map(strip_fields, filter(pred, persons)))
 
-    def get_director_name(persons):
+    def get_director_name(persons: list[dict]) -> str:
         directors = list(filter(is_director, persons))
         director = list(filter(is_director, persons))[0] \
             if len(directors) else {}
@@ -88,7 +90,7 @@ def transform_pg_to_es(pg_data) -> list[dict]:
     return prepared_data
 
 
-def save_to_elastic(es_client, es_data) -> None:
+def save_to_elastic(es_client: Elasticsearch, es_data: list[dict]) -> None:
     try:
         es_client.bulk(index=ES_INDEX, body=es_data, refresh=True)
     except Exception as err:
@@ -97,14 +99,14 @@ def save_to_elastic(es_client, es_data) -> None:
         raise
 
 
-def connect_elastic():
+def connect_elastic() -> Elasticsearch:
     es_client = Elasticsearch([es_node])
 
     log.info(f'\n{datetime.now()} Successfully connected to ElasticSearch '
              f'node {es_node.get("host")}:{es_node.get("port")}.')
 
     schema = get_elastic_schema('resources/es_schema.json')
-    if not es_client.indices.exists(ES_INDEX):
+    if not es_client.indices.exists(index=ES_INDEX):
         es_client.indices.create(index=ES_INDEX, body=schema)
         log.info(
             f'{datetime.now()} Index {ES_INDEX} was successfully created.')
