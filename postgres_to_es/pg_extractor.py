@@ -5,6 +5,7 @@ from typing import Optional
 import psycopg2  # type: ignore
 from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
 
+from backoff import backoff
 from config import dsn
 
 log = logging.getLogger('Postgres')
@@ -41,12 +42,18 @@ LIMIT %s;
 '''
 
 
+@backoff()
 def connect_pg() -> RealDictCursor:
-    conn = psycopg2.connect(**dsn, cursor_factory=RealDictCursor)
-    log.info(f'{datetime.now()} Successfully connected to Postgres.')
-    return conn.cursor()
+    try:
+        conn = psycopg2.connect(**dsn, cursor_factory=RealDictCursor)
+        log.info(f'{datetime.now()} Successfully connected to Postgres.')
+        return conn.cursor()
+    except Exception as err:
+        log.error(f'{datetime.now()} Postgres connection failed.\n{err}\n\n')
+        raise
 
 
+@backoff()
 def extract_from_pg(pg_cursor: RealDictCursor,
                     last_modified: Optional[str],
                     batch: int = 3,
@@ -54,6 +61,9 @@ def extract_from_pg(pg_cursor: RealDictCursor,
     data = []
 
     try:
+        if pg_cursor.closed:
+            pg_cursor = connect_pg()
+
         pg_cursor.execute(extract_query, (last_modified, query_limit))
 
         while True:

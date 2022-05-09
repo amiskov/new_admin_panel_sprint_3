@@ -6,11 +6,13 @@ from typing import Callable, Optional
 from elasticsearch import Elasticsearch
 from psycopg2.extras import RealDictRow  # type: ignore
 
+from backoff import backoff
 from config import ES_INDEX, es_node
 
 log = logging.getLogger('Elastic')
 
 
+@backoff()
 def get_elastic_schema(file_path: str) -> dict:
     """
     Returns the schema for the ElasticSearch index as a Python dictionary.
@@ -25,6 +27,7 @@ def get_elastic_schema(file_path: str) -> dict:
         return json.loads(content)
 
 
+@backoff()
 def transform_pg_to_es(pg_data: list[RealDictRow]) -> list[dict]:
     prepared_data: list[dict] = []
 
@@ -90,6 +93,7 @@ def transform_pg_to_es(pg_data: list[RealDictRow]) -> list[dict]:
     return prepared_data
 
 
+@backoff()
 def save_to_elastic(es_client: Elasticsearch, es_data: list[dict]) -> None:
     try:
         es_client.bulk(index=ES_INDEX, body=es_data, refresh=True)
@@ -99,18 +103,24 @@ def save_to_elastic(es_client: Elasticsearch, es_data: list[dict]) -> None:
         raise
 
 
+@backoff()
 def connect_elastic() -> Elasticsearch:
-    es_client = Elasticsearch([es_node])
+    try:
+        es_client = Elasticsearch([es_node])
 
-    log.info(f'\n{datetime.now()} Successfully connected to ElasticSearch '
-             f'node {es_node.get("host")}:{es_node.get("port")}.')
+        log.info(f'\n{datetime.now()} Successfully connected to ElasticSearch '
+                 f'node {es_node.get("host")}:{es_node.get("port")}.')
 
-    schema = get_elastic_schema('resources/es_schema.json')
-    if not es_client.indices.exists(index=ES_INDEX):
-        es_client.indices.create(index=ES_INDEX, body=schema)
-        log.info(
-            f'{datetime.now()} Index {ES_INDEX} was successfully created.')
-    else:
-        log.warning(f'{datetime.now()} Index {ES_INDEX} is already created.')
+        schema = get_elastic_schema('resources/es_schema.json')
+        if not es_client.indices.exists(index=ES_INDEX):
+            es_client.indices.create(index=ES_INDEX, body=schema)
+            log.info(
+                f'{datetime.now()} Index {ES_INDEX} was successfully created.')
+        else:
+            log.warning(
+                f'{datetime.now()} Index {ES_INDEX} is already created.')
 
-    return es_client
+        return es_client
+    except Exception as err:
+        log.error(f'{datetime.now()} Failed connecting to Elastic.\n{err}\n\n')
+        raise

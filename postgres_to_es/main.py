@@ -5,7 +5,6 @@ from typing import Optional
 
 from elasticsearch import Elasticsearch
 
-from backoff import backoff
 from config import STATE_FILE, STATE_KEY
 from es_loader import connect_elastic, save_to_elastic, transform_pg_to_es
 from pg_extractor import connect_pg, extract_from_pg
@@ -57,7 +56,6 @@ if __name__ == '__main__':
     else:
         last_modified = current_state
 
-    @backoff()
     def main():
         pg_cursor = connect_pg()
         es_client = connect_elastic()
@@ -71,5 +69,8 @@ if __name__ == '__main__':
             log.error(f'Failed while running '
                       f'the pipeline.\n{type(pg_err)}: {pg_err}\n\n')
             raise
+
+        pg_cursor.close()
+        es_client.close()
 
     main()
