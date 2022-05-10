@@ -12,11 +12,11 @@ STATE_KEY = 'last_modified'
 ES_INDEX = 'movies'
 
 dsn = {
-    'dbname': os.getenv('PG_DB'),
-    'user': os.getenv('PG_USER'),
-    'password': os.getenv('PG_PASSWORD'),
-    'host': os.environ.get('PG_HOST'),
-    'port': os.environ.get('PG_PORT'),
+    'dbname': os.getenv('POSTGRES_DB'),
+    'user': os.getenv('POSTGRES_USER'),
+    'password': os.getenv('POSTGRES_PASSWORD'),
+    'host': os.environ.get('POSTGRES_HOST'),
+    'port': os.environ.get('POSTGRES_PORT'),
     'options': '-c search_path=content',
 }
 
