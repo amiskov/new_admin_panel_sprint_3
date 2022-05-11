@@ -104,7 +104,9 @@ def save_to_elastic(es_client: Elasticsearch, es_data: list[dict]) -> None:
 
 
 @backoff()
-def connect_elastic() -> Elasticsearch:
+def connect_elastic(failed_clent: Optional[Elasticsearch] = None) -> Elasticsearch:
+    if failed_clent:
+        failed_clent.close()
     try:
         es_client = Elasticsearch([es_node])
 

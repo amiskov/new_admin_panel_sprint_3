@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime
-from typing import Generator, Any
+from typing import Generator, Any, Tuple, Optional
 
 from elasticsearch import Elasticsearch
 
@@ -14,31 +14,58 @@ from state import JsonFileStorage, State
 
 log = logging.getLogger('Main')
 
+connections = {
+    'pg_cursor': None,
+    'es_client': None,
+    'state': None
+}
 
-def run_pipeline(pg_cursor: RealDictCursor,
-                 es_client: Elasticsearch,
-                 state: State,
-                 table_name: str) -> None:
+
+def get_connections():
     """
-    Runs the process for retrieving/transforming/saving data
-    from Postgres DB to Elastic node.
+    Returns available connections to Postgres, Elastic, and State.
+    Tries to reconnect (using backoff-ed functions) if they're not available.
     """
+    global connections
+
+    pg_cursor = connections['pg_cursor']
+    es_client = connections['es_client']
+    state = connections['state']
+
+    is_pg_alive = pg_cursor and (not pg_cursor.closed)
+    is_es_alive = es_client and es_client.ping()
+    is_state_alive = bool(state)
+
+    if not is_pg_alive:
+        connections['pg_cursor'] = connect_pg(failed_cursor=pg_cursor)
+    if not is_es_alive:
+        connections['es_client'] = connect_elastic(failed_clent=es_client)
+    if not is_state_alive:
+        connections['state'] = State(JsonFileStorage(STATE_FILE))
+
+    return connections['pg_cursor'], connections['es_client'], connections[
+        'state']
+
+
+def run_pipeline(table_name: str) -> None:
+    """
+    Runs the process for retrieving/transforming/saving data from Postgres
+    to Elastic.
+    """
+    pg_cursor, es_client, state = get_connections()
 
     try:
         for entity_ids in get_entity_ids(pg_cursor, state, table_name):
-            for fw_ids in get_film_work_ids(pg_cursor, table_name, entity_ids):
-                if not fw_ids:
-                    log.info(f'''{datetime.now()} Table `{table_name}`
-                        has been successfully exported.\n''')
+            for film_work_ids in get_film_work_ids(pg_cursor, table_name, entity_ids):
+                if not film_work_ids:
                     return
-                for film_works in get_film_works(pg_cursor, fw_ids):
+                for film_works in get_film_works(pg_cursor, film_work_ids):
                     es_data = transform_pg_to_es(film_works)
                     save_to_elastic(es_client, es_data)
     except Exception as pipeline_err:
         log.error(
             f'{datetime.now()} Failed while running the pipeline.'
             f'\n{pipeline_err}\n\n')
-        raise
 
 
 def cycle_through(lst: list[Any]) -> Generator[Any, None, None]:
@@ -54,18 +81,12 @@ def cycle_through(lst: list[Any]) -> Generator[Any, None, None]:
 
 if __name__ == '__main__':
     try:
-        pg_cursor = connect_pg()
-        es_client = connect_elastic()
-        state = State(JsonFileStorage(STATE_FILE))
-
         # Run pipeline forever for each table at a time
         for table_name in cycle_through(['film_work', 'genre', 'person']):
             log.info(f'Exporting {table_name}...\n')
-            run_pipeline(pg_cursor, es_client, state, table_name)
-            time.sleep(3)
+            run_pipeline(table_name)
+            time.sleep(1)
 
-        pg_cursor.close()
-        es_client.close()
     except Exception as err:
         log.error(f'Failed while running the pipeline.'
                   f'\n{type(err)}: {err}\n\n')

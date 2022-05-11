@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Generator
+from typing import Any, Generator, Optional
 
 import psycopg2  # type: ignore
 from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
@@ -93,7 +93,9 @@ def query_film_works(film_work_ids: list[str]) -> str:
 
 
 @backoff()
-def connect_pg():
+def connect_pg(failed_cursor: Optional[RealDictCursor] = None):
+    if failed_cursor:
+        failed_cursor.close()
     try:
         conn = psycopg2.connect(**dsn, cursor_factory=RealDictCursor)
         log.info(f'{datetime.now()} Successfully connected to Postgres.')
@@ -104,6 +106,12 @@ def connect_pg():
 
 
 def get_entity_state(state: State, entity_table_name: str) -> str:
+    """
+    Retrieves the state for the given entity.
+
+    > get_entity_state(State(JsonFileStorage('state.json')), 'genre')
+    '2022-05-11 13:05:31.142997+00:00'
+    """
     current_state = state.get_state(entity_table_name)
     if not current_state:
         state.set_state(entity_table_name, str(datetime.min))
@@ -116,31 +124,33 @@ def get_entity_state(state: State, entity_table_name: str) -> str:
 def get_entity_ids(pg_cursor: RealDictCursor,
                    state: State,
                    entity_table_name: str,
-                   batch_size: int = 100) -> Generator[list[str], None, None]:
-    while True:
-        try:
+                   batch_size: int = 100
+                   ) -> Generator[list[str], None, None]:
+    try:
+        while True:
             last_modified = get_entity_state(state, entity_table_name)
             pg_cursor.execute(
                 entity_ids_query(entity_table_name, last_modified)
             )
             entity_records = pg_cursor.fetchmany(batch_size)
             if not entity_records:
+                log.info(f'No modifications found in {entity_table_name}.')
                 break
             yield [t['id'] for t in entity_records]
             next_last_modified = entity_records[-1].get('modified')
             state.set_state(entity_table_name, str(next_last_modified))
-        except Exception as err:
-            log.error(f'''{datetime.now()} Failed while extracting
-                {entity_table_name} IDs.\n{err}\n\n''')
-            raise
+    except Exception as err:
+        log.error(f'''{datetime.now()} Failed while extracting
+            {entity_table_name} IDs.\n{err}\n\n''')
+        raise
 
 
 @backoff()
 def get_film_work_ids(pg_cursor: RealDictCursor,
                       entity_table_name: str,
                       entity_ids: list[str],
-                      batch_size: int = 100) \
-        -> Generator[list[str], None, None]:
+                      batch_size: int = 100
+                      ) -> Generator[list[str], None, None]:
     try:
         if entity_table_name == 'film_work':
             yield entity_ids
@@ -163,7 +173,8 @@ def get_film_work_ids(pg_cursor: RealDictCursor,
 @backoff()
 def get_film_works(pg_cursor: RealDictCursor,
                    film_work_ids: list[str],
-                   batch_size=100) -> Generator[list[RealDictRow], None, None]:
+                   batch_size=100
+                   ) -> Generator[list[RealDictRow], None, None]:
     try:
         pg_cursor.execute(query_film_works(film_work_ids))
 
