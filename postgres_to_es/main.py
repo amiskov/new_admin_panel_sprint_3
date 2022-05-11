@@ -1,14 +1,12 @@
 import logging
 import time
 from datetime import datetime
-from typing import Any, Generator, Optional, Tuple
+from typing import Any, Generator
 
 from config import STATE_FILE
-from elasticsearch import Elasticsearch
 from es_loader import connect_elastic, save_to_elastic, transform_pg_to_es
 from pg_extractor import (connect_pg, get_entity_ids, get_film_work_ids,
                           get_film_works)
-from psycopg2.extras import RealDictCursor  # type: ignore
 from state import JsonFileStorage, State
 
 log = logging.getLogger('Main')
@@ -38,7 +36,7 @@ def get_connections():
     if not is_pg_alive:
         connections['pg_cursor'] = connect_pg(failed_cursor=pg_cursor)
     if not is_es_alive:
-        connections['es_client'] = connect_elastic(failed_clent=es_client)
+        connections['es_client'] = connect_elastic(failed_client=es_client)
     if not is_state_alive:
         connections['state'] = State(JsonFileStorage(STATE_FILE))
 
