@@ -3,6 +3,7 @@ import re
 import sys
 from json import JSONDecodeError
 
+sys.path.append('../postgres_to_es')
 from state import RedisStorage, State
 
 # TODO: здесь вставьте import для своих файлов State и RedisStorage

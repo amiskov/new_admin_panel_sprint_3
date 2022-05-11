@@ -81,3 +81,12 @@ class RedisStorage(BaseStorage):
 
     def __init__(self, redis_adapter: Redis):
         self.redis_adapter = redis_adapter
+
+    def save_state(self, state: dict):
+        self.redis_adapter.set("data", json.dumps(state))
+
+    def retrieve_state(self) -> dict:
+        data = self.redis_adapter.get("data")
+        if data:
+            return json.loads(data)
+        return {}
