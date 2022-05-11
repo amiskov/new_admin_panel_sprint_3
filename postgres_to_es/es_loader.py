@@ -3,11 +3,10 @@ import logging
 from datetime import datetime
 from typing import Callable, Optional
 
-from elasticsearch import Elasticsearch
-from psycopg2.extras import RealDictRow  # type: ignore
-
 from backoff import backoff
 from config import ES_INDEX, es_node
+from elasticsearch import Elasticsearch
+from psycopg2.extras import RealDictRow  # type: ignore
 
 log = logging.getLogger('Elastic')
 

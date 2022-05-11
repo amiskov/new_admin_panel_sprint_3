@@ -3,10 +3,9 @@ from datetime import datetime
 from typing import Any, Generator, Optional
 
 import psycopg2  # type: ignore
-from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
-
 from backoff import backoff
 from config import dsn
+from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
 from state import State
 
 log = logging.getLogger('Postgres')
