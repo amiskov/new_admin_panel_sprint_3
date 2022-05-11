@@ -8,7 +8,6 @@ load_dotenv()
 logging.basicConfig(filename='logs/es.log', level='INFO')
 
 STATE_FILE = os.getenv('STATE_FILE')
-STATE_KEY = 'last_modified'
 ES_INDEX = 'movies'
 
 dsn = {
