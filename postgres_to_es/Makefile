@@ -4,6 +4,8 @@ es-create-movies-index:
 	curl -XPUT http://127.0.0.1:9200/movies -H 'Content-Type: application/json' --data @resources/es_schema.json
 lint:
 	flake8 *.py
+typecheck:
+	mypy *.py
 run-elastic:
 	docker run -p 9200:9200 \
 	-e "http.cors.enabled=true" \
