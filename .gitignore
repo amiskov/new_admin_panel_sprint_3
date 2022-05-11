@@ -1,0 +1,7 @@
+.env
+postgres_to_es/logs/*.log
+__pycache__/
+.idea/
+venv/
+postgres_to_es/resources/state.json
+.mypy_cache/

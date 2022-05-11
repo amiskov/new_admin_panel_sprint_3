@@ -1,0 +1,5 @@
+postgres_to_es/resources/state.json
+logs/es.log
+.idea/
+.mypy_cache/
+venv/

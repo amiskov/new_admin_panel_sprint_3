@@ -1,7 +1,0 @@
-.env
-logs/*.log
-__pycache__/
-.idea/
-venv/
-resources/state.json
-.mypy_cache/

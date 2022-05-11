@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: etl_postgres
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+  elastic:
+    image: elasticsearch:7.7.0
+    container_name: etl_elastic
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "http.cors.enabled=true"
+      - "http.cors.allow-origin=https://app.elasticvue.com"
+    ports:
+      - "9200:9200"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+  etl:
+    container_name: etl_pipeline
+    build:
+      context: ./postgres_to_es
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - elastic
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
