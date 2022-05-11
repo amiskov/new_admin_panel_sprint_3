@@ -1,24 +1,25 @@
 import logging
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any, Generator
 
 import psycopg2  # type: ignore
 from psycopg2.extras import RealDictCursor, RealDictRow  # type: ignore
 
 from backoff import backoff
 from config import dsn
+from state import State
 
 log = logging.getLogger('Postgres')
 
 
-def to_query_str(l: list[str]) -> str:
+def to_query_str(lst: list[str]) -> str:
     """
     Returns a string for the inner part of an SQL-tuple.
 
     > to_query_str(['1', '2', '3'])
     "'1', '2', '3'"  # in SQL it will become `('1', '2', '3')`
     """
-    return ', '.join("'" + i + "'" for i in l)
+    return ', '.join("'" + i + "'" for i in lst)
 
 
 def only_first_els(ts: list[tuple]) -> list[Any]:
@@ -31,37 +32,44 @@ def only_first_els(ts: list[tuple]) -> list[Any]:
     return [el[0] for el in ts]
 
 
-def query_table_ids(table_name: str, from_modified: str, limit=100):
+def entity_ids_query(table_name: str, from_modified: str):
+    """
+    Query has no `LIMIT`, should be used in generator.
+    """
     return f"""
     SELECT id, modified
     FROM content.{table_name}
     WHERE modified > '{from_modified}'
-    ORDER BY modified
-    LIMIT {limit}; 
+    ORDER BY modified;
     """
 
 
-def query_film_work_ids(table_name: str, ids: list[str], limit=100) -> str:
+def query_film_work_ids(table_name: str, ids: list[str]) -> str:
+    """
+    Query has no `LIMIT`, should be used in generator.
+    """
     return f"""
     SELECT fw.id, fw.modified
     FROM content.film_work fw
     LEFT JOIN content.{table_name}_film_work tfw ON tfw.film_work_id = fw.id
     WHERE tfw.{table_name}_id IN ({to_query_str(ids)})
-    ORDER BY fw.modified
-    LIMIT {limit};
+    ORDER BY fw.modified;
     """
 
 
 def query_film_works(film_work_ids: list[str]) -> str:
+    """
+    Query has no `LIMIT`, should be used in generator.
+    """
     return f"""
     SELECT
-    fw.id, 
-    fw.title, 
-    fw.description, 
-    fw.rating, 
-    fw.type, 
-    fw.created, 
-    fw.modified, 
+    fw.id,
+    fw.title,
+    fw.description,
+    fw.rating,
+    fw.type,
+    fw.created,
+    fw.modified,
     COALESCE (
         json_agg(
             DISTINCT jsonb_build_object(
@@ -95,40 +103,78 @@ def connect_pg():
         raise
 
 
+def get_entity_state(state: State, entity_table_name: str) -> str:
+    current_state = state.get_state(entity_table_name)
+    if not current_state:
+        state.set_state(entity_table_name, str(datetime.min))
+        return state.get_state(entity_table_name)
+    else:
+        return current_state
+
+
 @backoff()
-def extract_from_pg(pg_cursor: RealDictCursor,
-                    table_name: str,
-                    last_modified: str,
-                    batch: int = 3,
-                    query_limit: int = 10):
+def get_entity_ids(pg_cursor: RealDictCursor,
+                   state: State,
+                   entity_table_name: str,
+                   batch_size: int = 100) -> Generator[list[str], None, None]:
+    while True:
+        try:
+            last_modified = get_entity_state(state, entity_table_name)
+            pg_cursor.execute(
+                entity_ids_query(entity_table_name, last_modified)
+            )
+            entity_records = pg_cursor.fetchmany(batch_size)
+            if not entity_records:
+                break
+            yield [t['id'] for t in entity_records]
+            next_last_modified = entity_records[-1].get('modified')
+            state.set_state(entity_table_name, str(next_last_modified))
+        except Exception as err:
+            log.error(f'''{datetime.now()} Failed while extracting
+                {entity_table_name} IDs.\n{err}\n\n''')
+            raise
+
+
+@backoff()
+def get_film_work_ids(pg_cursor: RealDictCursor,
+                      entity_table_name: str,
+                      entity_ids: list[str],
+                      batch_size: int = 100) \
+        -> Generator[list[str], None, None]:
     try:
-        # Collect modified person/genre/film_work ids
-        q = query_table_ids(table_name, last_modified, query_limit)
-        pg_cursor.execute(q)
-        records = pg_cursor.fetchall()
-        table_ids = [t['id'] for t in records]
-
-        next_last_modified = records[-1].get('modified') if table_ids \
-            else last_modified
-
-        # Collect film_work ids
-        if table_name == 'film_work':
-            film_work_ids = table_ids
-        elif table_ids:
-            pg_cursor.execute(query_film_work_ids(table_name, table_ids))
-            film_work_ids = [t['id'] for t in pg_cursor.fetchall()]
+        if entity_table_name == 'film_work':
+            yield entity_ids
         else:
-            film_work_ids = []
-
-        # Collect all film_work data
-        # TODO: use batch
-        if film_work_ids:
-            pg_cursor.execute(query_film_works(film_work_ids))
-            film_works = pg_cursor.fetchall()
-        else:
-            film_works = []
-        return film_works, next_last_modified
+            pg_cursor.execute(
+                query_film_work_ids(entity_table_name, entity_ids)
+            )
+            while True:
+                film_work_records = pg_cursor.fetchmany(batch_size)
+                if not film_work_records:
+                    break
+                yield [t['id'] for t in film_work_records]
     except Exception as err:
-        log.error(f'{datetime.now()} Failed while extracting data '
-                  f'from Postgres.\n{err}\n\n')
+        log.error(
+            f'{datetime.now()} Failed while extracting film_work IDs.'
+            f'\n{err}\n\n')
+        raise
+
+
+@backoff()
+def get_film_works(pg_cursor: RealDictCursor,
+                   film_work_ids: list[str],
+                   batch_size=100) -> Generator[list[RealDictRow], None, None]:
+    try:
+        pg_cursor.execute(query_film_works(film_work_ids))
+
+        while True:
+            records = pg_cursor.fetchmany(batch_size)
+
+            if not records:
+                break
+
+            yield records
+    except Exception as err:
+        log.error(f'{datetime.now()} Failed while extracting film_works data.'
+                  f'\n{err}\n\n')
         raise
